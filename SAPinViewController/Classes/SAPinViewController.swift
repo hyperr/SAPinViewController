@@ -197,7 +197,6 @@ public class SAPinViewController: UIViewController {
     public weak var delegate: SAPinViewControllerDelegate?;
     
     
-    private var blurView: UIVisualEffectView!
     private var numPadView: UIView!
     private var buttons: [SAButtonView]! = []
     private var circleViews: [SACircleView]! = []
@@ -262,7 +261,6 @@ public class SAPinViewController: UIViewController {
         
         initialized = true;
         dotContainerWidth = 3 * SAPinConstant.ButtonWidth + 2 * SAPinConstant.ButtonPadding
-        blurView = UIVisualEffectView(effect: UIBlurEffect(style: .Light))
         numPadView = UIView()
         
         if backgroundImage != nil {
@@ -275,14 +273,6 @@ public class SAPinViewController: UIViewController {
             view.addSubview(imageView)
         }
         
-        view.addSubview(blurView)
-        view.bringSubviewToFront(blurView)
-        
-        blurView.contentView.addSubview(numPadView)
-        blurView.snp_makeConstraints { (make) in
-            make.edges.equalTo(self.view)
-        }
-        
         numPadView.snp_makeConstraints { (make) in
             let offset = logoImage != nil
                 ? SAPinConstant.LogoImageWidth
@@ -290,8 +280,8 @@ public class SAPinViewController: UIViewController {
             
             make.width.equalTo(dotContainerWidth)
             make.height.equalTo(4 * SAPinConstant.ButtonWidth + 3 * SAPinConstant.ButtonPadding)
-            make.centerX.equalTo(blurView.snp_centerX)
-            make.centerY.equalTo(blurView.snp_centerY).offset(2 * SAPinConstant.ButtonPadding + offset);
+            make.centerX.equalTo(view.snp_centerX)
+            make.centerY.equalTo(view.snp_centerY).offset(2 * SAPinConstant.ButtonPadding + offset);
         }
         
         // Add buttons
@@ -419,13 +409,14 @@ extension SAPinViewController
     
     private func addCircles() {
         dotContainerView = UIView()
-        blurView.contentView.addSubview(dotContainerView)
         dotContainerView.snp_makeConstraints { (make) in
             make.top.equalTo(numPadView.snp_top).offset(-2*SAPinConstant.ButtonPadding)
             make.height.equalTo(20)
             make.width.equalTo(3*SAPinConstant.ButtonWidth + 2*SAPinConstant.ButtonPadding)
             make.centerX.equalTo(numPadView.snp_centerX)
         }
+        
+        view.addSubview(dotContainerView)
         
         for _ in 0...3 {
             let aBall = SACircleView(frame: CGRect(x: 0, y: 0, width: SAPinConstant.CircleWidth, height: SAPinConstant.CircleWidth))
@@ -467,7 +458,7 @@ extension SAPinViewController
         subtitleLabel.font = UIFont(name: SAPinConstant.DefaultFontName, size: 13.0)
         subtitleLabel.textAlignment = .Center
         subtitleLabel.textColor = UIColor.whiteColor()
-        blurView.addSubview(subtitleLabel)
+        view.addSubview(subtitleLabel)
         updateSubtitle()
     }
     
@@ -476,7 +467,7 @@ extension SAPinViewController
         subtitleLabel.snp_remakeConstraints { (make) in
             make.width.equalTo(dotContainerWidth)
             make.bottom.equalTo(dotContainerView.snp_top).offset(-5)
-            make.centerX.equalTo(blurView.snp_centerX)
+            make.centerX.equalTo(view.snp_centerX)
         }
     }
     
@@ -486,7 +477,7 @@ extension SAPinViewController
         titleLabel.font = UIFont(name: SAPinConstant.DefaultFontName, size: 17.0)
         titleLabel.textAlignment = .Center
         titleLabel.textColor = UIColor.whiteColor()
-        blurView.addSubview(titleLabel)
+        view.addSubview(titleLabel)
         updateTitle()
     }
     
@@ -499,20 +490,20 @@ extension SAPinViewController
             } else {
                 make.bottom.equalTo(subtitleLabel.snp_top).offset(-5)
             }
-            make.centerX.equalTo(blurView.snp_centerX)
+            make.centerX.equalTo(view.snp_centerX)
         }
     }
     
     private func addLogo() {
         let logoImageView = UIImageView(image: logoImage)
-        blurView.addSubview(logoImageView)
+        view.addSubview(logoImageView)
         logoImageView.contentMode = .ScaleAspectFit
         logoImageView.layer.cornerRadius = SAPinConstant.LogoImageWidth/2.0
         logoImageView.clipsToBounds = true
         logoImageView.snp_makeConstraints { (make) in
             make.width.equalTo(SAPinConstant.LogoImageWidth)
             make.height.equalTo(SAPinConstant.LogoImageWidth)
-            make.centerX.equalTo(blurView.snp_centerX)
+            make.centerX.equalTo(view.snp_centerX)
             make.bottom.equalTo(titleLabel.snp_top).offset(-8)
         }
     }
@@ -523,7 +514,7 @@ extension SAPinViewController
         cancelButtonFont = titleLabel.font
         setAttributedTitleForButtonWithTitle(SAPinConstant.CancelString, font: cancelButtonFont, color: cancelButtonColor)
         cancelButton.addTarget(self, action: #selector(self.cancelDeleteTap), forControlEvents: .TouchUpInside)
-        blurView.addSubview(cancelButton)
+        view.addSubview(cancelButton)
         cancelButton.snp_makeConstraints { (make) in
             make.trailing.equalTo(numPadView.snp_trailing)
             if UIDevice.currentDevice().userInterfaceIdiom == .Phone {
