@@ -410,6 +410,7 @@ extension SAPinViewController
     
     private func addCircles() {
         dotContainerView = UIView()
+        view.addSubview(dotContainerView)
         dotContainerView.snp_makeConstraints { (make) in
             make.top.equalTo(numPadView.snp_top).offset(-2*SAPinConstant.ButtonPadding)
             make.height.equalTo(20)
@@ -417,7 +418,6 @@ extension SAPinViewController
             make.centerX.equalTo(numPadView.snp_centerX)
         }
         
-        view.addSubview(dotContainerView)
         
         for _ in 0...3 {
             let aBall = SACircleView(frame: CGRect(x: 0, y: 0, width: SAPinConstant.CircleWidth, height: SAPinConstant.CircleWidth))
