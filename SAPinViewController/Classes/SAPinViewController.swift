@@ -12,7 +12,7 @@ import SnapKit
 /// SAPinViewControllerDelegate
 /// Any ViewController that would like to present `SAPinViewController` should implement
 /// all these protocol methods
-public protocol SAPinViewControllerDelegate {
+public protocol SAPinViewControllerDelegate : class {
     
     /// Gets called upon tapping on `Cancel` button 
     /// required and must be implemented
@@ -20,7 +20,7 @@ public protocol SAPinViewControllerDelegate {
     
     /// Gets called if the enterd PIN returned `true` passing it to `isPinValid(pin: String) -> Bool`
     /// required and must be implemented
-    func pinEntryWasSuccessful()
+    func pinEntryWasSuccessful(pin: String)
     
     /// Gets called if the enterd PIN returned `false` passing it to `isPinValid(pin: String) -> Bool`
     /// required and must be implemented
@@ -192,6 +192,11 @@ public class SAPinViewController: UIViewController {
         }
     }
     
+    /// Set this to an object that will be notified about actions from the 
+    /// pin view controller. For example when the pin should be validated
+    public weak var delegate: SAPinViewControllerDelegate?;
+    
+    
     private var blurView: UIVisualEffectView!
     private var numPadView: UIView!
     private var buttons: [SAButtonView]! = []
@@ -202,9 +207,10 @@ public class SAPinViewController: UIViewController {
     private var cancelButton: UIButton!
     private var dotContainerWidth: CGFloat = 0
     private var tappedButtons: [Int] = []
-    private var delegate: SAPinViewControllerDelegate?
     private var backgroundImage: UIImage!
     private var logoImage: UIImage!
+    private var initialized: Bool = false;
+    
     
     /// Designate initialaiser
     ///
@@ -213,62 +219,81 @@ public class SAPinViewController: UIViewController {
     /// - parameter backgroundColor:       optional Color, by passing one, you will get a solid backgournd color and the blur effect would be ignored
     /// - parameter logoImage:             optional Image, by passing one, you will get a circled logo on top, please pass a square size image. not available for 3.5inch screen
     public init(withDelegate: SAPinViewControllerDelegate, backgroundImage: UIImage? = nil, backgroundColor: UIColor? = nil, logoImage: UIImage? = nil) {
-        
         super.init(nibName: nil, bundle: nil)
         delegate = withDelegate
-        if let safeImage = backgroundImage {
-            if let safeBGColor = backgroundColor {
-                self.view.backgroundColor = safeBGColor
-            } else {
-                self.backgroundImage = safeImage
-            }
+        
+        // setup background color or image
+        if let backgroundColor = backgroundColor {
+            self.view.backgroundColor = backgroundColor;
         }
-        if let safeBGColor = backgroundColor {
-            self.view.backgroundColor = safeBGColor
+        else if let backgroundImage = backgroundImage {
+            self.backgroundImage = backgroundImage;
         }
-        if let safeLogoImage = logoImage {
-            if !self.isSmallScreen() {
-                self.logoImage = safeLogoImage
-            }
+        
+        // setup user defined logo
+        if let logoImage = logoImage where !self.isSmallScreen() {
+            self.logoImage = logoImage
         }
+        
+        
+        // setup UI
         self.setupUI()
     }
     
+    
+    /// Story Board Initializer
     required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }
     
+    public override func viewDidLoad() {
+        super.viewDidLoad();
+        self.setupUI();
+    }
+    
+    
     /// Initial UI setup
     func setupUI() {
-        dotContainerWidth = 3 * SAPinConstant.ButtonWidth + 2 * SAPinConstant.ButtonPadding
         
-        numPadView = UIView()
+        // already initialized
+        guard initialized == false else {
+            return;
+        }
+        
+        initialized = true;
+        dotContainerWidth = 3 * SAPinConstant.ButtonWidth + 2 * SAPinConstant.ButtonPadding
         blurView = UIVisualEffectView(effect: UIBlurEffect(style: .Light))
+        numPadView = UIView()
+        
         if backgroundImage != nil {
             let imageView = UIImageView(image: backgroundImage)
             imageView.contentMode = .ScaleAspectFit
-            view.addSubview(imageView)
             imageView.snp_makeConstraints(closure: { (make) in
                 make.edges.equalTo(view)
             })
+            
+            view.addSubview(imageView)
         }
+        
         view.addSubview(blurView)
         view.bringSubviewToFront(blurView)
+        
+        blurView.contentView.addSubview(numPadView)
         blurView.snp_makeConstraints { (make) in
             make.edges.equalTo(self.view)
         }
-        blurView.contentView.addSubview(numPadView)
         
         numPadView.snp_makeConstraints { (make) in
+            let offset = logoImage != nil
+                ? SAPinConstant.LogoImageWidth
+                : 0;
+            
             make.width.equalTo(dotContainerWidth)
             make.height.equalTo(4 * SAPinConstant.ButtonWidth + 3 * SAPinConstant.ButtonPadding)
             make.centerX.equalTo(blurView.snp_centerX)
-            if logoImage != nil {
-                make.centerY.equalTo(blurView.snp_centerY).offset(2*SAPinConstant.ButtonPadding + SAPinConstant.LogoImageWidth)
-            } else {
-                make.centerY.equalTo(blurView.snp_centerY).offset(2*SAPinConstant.ButtonPadding)
-            }
+            make.centerY.equalTo(blurView.snp_centerY).offset(2 * SAPinConstant.ButtonPadding + offset);
         }
+        
         // Add buttons
         addButtons()
         layoutButtons()
@@ -287,10 +312,52 @@ public class SAPinViewController: UIViewController {
         if logoImage != nil {
             addLogo()
         }
+        
         // Add Cancel Button
         addCancelButton()
     }
-    // MARK: Private methods
+}
+
+
+// MARK: - SAButtonView Delegate Implementation
+extension SAPinViewController: SAButtonViewDelegate {
+    
+    /// Called when a button with the given tag was pressed
+    func buttonTappedWithTag(tag: Int) {
+        guard tappedButtons.count < 4 else {
+            return;
+        }
+        
+        circleViews[tappedButtons.count].animateTapFull()
+        tappedButtons.append(tag)
+        setAttributedTitleForButtonWithTitle(SAPinConstant.DeleteString, font: cancelButtonFont, color: cancelButtonColor)
+        
+        // the pin is not ready yet or no delegate is assigned
+        guard let delegate = self.delegate else { return; }
+        guard tappedButtons.count == 4 else { return; }
+        
+        // create pin from the entered numbers
+        let pin = tappedButtons
+            .map({ number in String(number) })
+            .joinWithSeparator("");
+        
+        // validate pin
+        guard delegate.isPinValid(pin) == false else {
+            delegate.pinEntryWasSuccessful(pin);
+            return;
+        }
+        
+        delegate.pinEntryWasCancelled();
+        pinErrorAnimate()
+        tappedButtons = []
+        setAttributedTitleForButtonWithTitle(SAPinConstant.CancelString, font: cancelButtonFont, color: cancelButtonColor);
+    }
+}
+
+
+// MARK: - Private Helper Methods
+extension SAPinViewController
+{
     private func addButtons() {
         for i in 0...9 {
             let btnView = SAButtonView(frame: CGRect(x: 0, y: 0, width: SAPinConstant.ButtonWidth, height: SAPinConstant.ButtonWidth))
@@ -349,6 +416,7 @@ public class SAPinViewController: UIViewController {
             make.right.equalTo(numPadView)
         }
     }
+    
     private func addCircles() {
         dotContainerView = UIView()
         blurView.contentView.addSubview(dotContainerView)
@@ -366,6 +434,7 @@ public class SAPinViewController: UIViewController {
             circleViews.append(aBall)
         }
     }
+    
     private func layoutCircles() {
         for i in 0...3 {
             circleViews[i].snp_makeConstraints(closure: { (make) in
@@ -391,6 +460,7 @@ public class SAPinViewController: UIViewController {
             make.top.equalTo(dotContainerView)
         }
     }
+    
     private func addSubtitle() {
         subtitleLabel = UILabel()
         subtitleLabel.numberOfLines = 0
@@ -400,6 +470,7 @@ public class SAPinViewController: UIViewController {
         blurView.addSubview(subtitleLabel)
         updateSubtitle()
     }
+    
     private func updateSubtitle() {
         subtitleLabel.text = subtitleText
         subtitleLabel.snp_remakeConstraints { (make) in
@@ -408,6 +479,7 @@ public class SAPinViewController: UIViewController {
             make.centerX.equalTo(blurView.snp_centerX)
         }
     }
+    
     private func addTitle() {
         titleLabel = UILabel()
         titleLabel.numberOfLines = 1
@@ -417,6 +489,7 @@ public class SAPinViewController: UIViewController {
         blurView.addSubview(titleLabel)
         updateTitle()
     }
+    
     private func updateTitle() {
         titleLabel.text = titleText ?? "Enter Passcode"
         titleLabel.snp_remakeConstraints { (make) in
@@ -429,6 +502,7 @@ public class SAPinViewController: UIViewController {
             make.centerX.equalTo(blurView.snp_centerX)
         }
     }
+    
     private func addLogo() {
         let logoImageView = UIImageView(image: logoImage)
         blurView.addSubview(logoImageView)
@@ -442,6 +516,7 @@ public class SAPinViewController: UIViewController {
             make.bottom.equalTo(titleLabel.snp_top).offset(-8)
         }
     }
+    
     private func addCancelButton() {
         cancelButton = UIButton(type: .Custom)
         cancelButtonColor = titleLabel.textColor
@@ -452,7 +527,7 @@ public class SAPinViewController: UIViewController {
         cancelButton.snp_makeConstraints { (make) in
             make.trailing.equalTo(numPadView.snp_trailing)
             if UIDevice.currentDevice().userInterfaceIdiom == .Phone {
-                // 3.5" special case 
+                // 3.5" special case
                 if isSmallScreen() {
                     make.bottom.equalTo(numPadView)
                 } else {
@@ -468,6 +543,7 @@ public class SAPinViewController: UIViewController {
             make.height.equalTo(44)
         }
     }
+    
     func cancelDeleteTap() {
         if cancelButton.titleLabel?.text == SAPinConstant.DeleteString {
             if tappedButtons.count > 0 {
@@ -481,12 +557,15 @@ public class SAPinViewController: UIViewController {
             delegate?.pinEntryWasCancelled()
         }
     }
+    
     private func isSmallScreen() -> Bool {
         return UIScreen.mainScreen().bounds.height == 480
     }
+    
     private func setAttributedTitleForButtonWithTitle(title: String, font: UIFont, color: UIColor) {
         cancelButton.setAttributedTitle(NSAttributedString(string: title, attributes: [NSFontAttributeName:font,NSForegroundColorAttributeName:color]), forState: .Normal)
     }
+    
     private func pinErrorAnimate() {
         for item in circleViews {
             UIView.animateWithDuration(0.1, animations: {
@@ -500,6 +579,7 @@ public class SAPinViewController: UIViewController {
         }
         animateView()
     }
+    
     private func animateView() {
         setOptions()
         animate()
@@ -521,28 +601,6 @@ public class SAPinViewController: UIViewController {
             item.animateFrom = true
             item.animatePreset()
             item.setView{}
-        }
-    }
-    
-}
-
-extension SAPinViewController: SAButtonViewDelegate {
-    func buttonTappedWithTag(tag: Int) {
-        if tappedButtons.count < 4 {
-            circleViews[tappedButtons.count].animateTapFull()
-            tappedButtons.append(tag)
-            setAttributedTitleForButtonWithTitle(SAPinConstant.DeleteString, font: cancelButtonFont, color: cancelButtonColor)
-            if tappedButtons.count == 4 {
-                if delegate!.isPinValid("\(tappedButtons[0])\(tappedButtons[1])\(tappedButtons[2])\(tappedButtons[3])") {
-                    delegate?.pinEntryWasSuccessful()
-                } else {
-                    delegate?.pinWasIncorrect()
-                    pinErrorAnimate()
-                    tappedButtons = []
-                    setAttributedTitleForButtonWithTitle(SAPinConstant.CancelString, font: cancelButtonFont, color: cancelButtonColor)
-                }
-                
-            }
         }
     }
 }
