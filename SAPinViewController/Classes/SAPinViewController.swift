@@ -273,6 +273,7 @@ public class SAPinViewController: UIViewController {
             view.addSubview(imageView)
         }
         
+        view.addSubview(numPadView);
         numPadView.snp_makeConstraints { (make) in
             let offset = logoImage != nil
                 ? SAPinConstant.LogoImageWidth
