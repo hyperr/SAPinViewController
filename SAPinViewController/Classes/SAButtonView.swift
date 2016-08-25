@@ -158,15 +158,13 @@ class SAButtonView: UIView {
     
     func btnTap() {
         delegate?.buttonTappedWithTag(numberTag)
-        UIView.animateWithDuration(0.17, delay: 0, options: .CurveEaseIn, animations: {
+        UIView.animateWithDuration(0.17, delay: 0, options: [ .CurveEaseIn, .AllowUserInteraction ], animations: {
             self.backgroundColor = self.buttonBorderColor.colorWithAlphaComponent(0.4)
-        }) { (isFinish) in
-            if isFinish {
-                UIView.animateWithDuration(0.17, delay: 0.1, options: .CurveEaseOut, animations: {
-                    self.backgroundColor = UIColor.clearColor()
-                    }, completion: nil)
-            }
+        }) { (finished) in
+            guard finished else { return; }
+            UIView.animateWithDuration(0.17, delay: 0.1, options: [ .CurveEaseOut, .AllowUserInteraction ], animations: {
+                self.backgroundColor = UIColor.clearColor()
+            }, completion: nil)
         }
     }
-    
 }
